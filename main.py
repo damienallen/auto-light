@@ -1,8 +1,13 @@
 import os
 import sys
 import time
+from datetime import datetime, timedelta
 
 import RPi.GPIO as gpio
+
+# Paramaters
+timeout = 5
+sample_rate = 1
 
 relay_pin = 8
 motion_pin = 10
@@ -15,15 +20,31 @@ def main():
     # Initialize I/O channels
     gpio.setup(relay_pin, gpio.OUT)
     gpio.setup(motion_pin, gpio.IN)
+    gpio.output(relay_pin, True)
+
+    # Execution loop
+    last_motion = datetime.now() - timedelta(seconds=60)
+    last_powered = False
 
     while True:
-        motion = gpio.input(motion_pin)
-        print(f"Motion: {motion}")
+        # Read for motion on PIR sensor
+        motion = bool(gpio.input(motion_pin))
+        now = datetime.now()
+        if motion:
+            last_motion = now
 
-        light_powered = motion == 0
-        gpio.output(relay_pin, light_powered)
+        # Power light if motion detected within timout threshold
+        cutoff = now - timedelta(seconds=timeout)
+        light_powered = last_motion > cutoff
 
-        time.sleep(1)
+        if light_powered != last_powered:
+            timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+            print(f"{timestamp} -> {light_powered=}")
+
+        last_powered = light_powered
+        gpio.output(relay_pin, not light_powered)
+
+        time.sleep(sample_rate)
 
 
 if __name__ == "__main__":
