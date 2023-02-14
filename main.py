@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 import RPi.GPIO as gpio
 
 # Paramaters
-timeout = 5
-sample_rate = 1
+timeout = 60
+sample_rate = 0.5
 
 relay_pin = 8
 motion_pin = 10
