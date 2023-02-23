@@ -1,61 +1,63 @@
-import os
-import sys
-import time
-from datetime import datetime, timedelta
+from time import time
 
-import RPi.GPIO as gpio
+import micropython
+from machine import Pin, Timer
 
-# Paramaters
-timeout = 60
-sample_rate = 0.5
-
-relay_pin = 8
-motion_pin = 10
+# Allocate memory for intercept exception handling
+micropython.alloc_emergency_exception_buf(100)
 
 
-def main():
-    # Set mode to board pin numbering
-    gpio.setmode(gpio.BOARD)
+class AutoLight:
+    """
+    Class to take advantage of shared memory space for interrupt handlers
+    https://docs.micropython.org/en/latest/reference/isr_rules.html#isr-rules
+    """
 
-    # Initialize I/O channels
-    gpio.setup(relay_pin, gpio.OUT)
-    gpio.setup(motion_pin, gpio.IN)
-    gpio.output(relay_pin, True)
+    def __init__(self, timer):
+        # Sensing frequency (s)
+        frequency = 1 / 2
 
-    # Execution loop
-    last_motion = datetime.now() - timedelta(seconds=60)
-    last_powered = False
+        # Motion timeout (s)
+        self.timeout = 10
 
-    while True:
+        # I/O setup
+        self.relay = Pin(22, Pin.OUT)
+        self.motion = Pin(21, Pin.IN)
+
+        # Power motion sensor pin
+        motion_power = Pin(20, Pin.OUT)
+        motion_power.value(1)
+
+        # State
+        self.start_time = time()
+        self.last_motion = self.start_time - self.timeout
+        self.last_powered = False
+
+        # Start timer
+        timer.init(freq=frequency, mode=Timer.PERIODIC, callback=self.callback)
+
+    def callback(self, timer):
+        """
+        Adjust light setting based on motion
+        """
+
         # Read for motion on PIR sensor
-        motion = bool(gpio.input(motion_pin))
-        now = datetime.now()
-        if motion:
-            last_motion = now
+        motion_detected = self.motion.value() == 1
 
-        # Power light if motion detected within timout threshold
-        cutoff = now - timedelta(seconds=timeout)
-        light_powered = last_motion > cutoff
+        now = time()
+        if motion_detected:
+            self.last_motion = time()
 
-        if light_powered != last_powered:
-            timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
-            print(f"{timestamp} -> {light_powered=}")
+        # Power light if motion detected within threshold
+        since_last_motion = now - self.last_motion
+        since_start = now - self.start_time
 
-        last_powered = light_powered
-        gpio.output(relay_pin, not light_powered)
+        light_powered = since_last_motion < self.timeout
+        self.relay.value(1 if not light_powered else 0)
 
-        time.sleep(sample_rate)
+        if not light_powered == self.last_powered:
+            self.last_powered = light_powered
+            print(f"{since_start} seconds elapsed | {light_powered=}")
 
 
-if __name__ == "__main__":
-    try:
-        main()
-
-    except KeyboardInterrupt:
-        print("\nCleaning up...")
-        gpio.cleanup()
-
-        try:
-            sys.exit(130)
-        except SystemExit:
-            os._exit(130)
+auto_light = AutoLight(Timer())
