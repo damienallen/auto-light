@@ -13,12 +13,12 @@ class AutoLight:
     https://docs.micropython.org/en/latest/reference/isr_rules.html#isr-rules
     """
 
-    def __init__(self, timer):
+    def __init__(self):
         # Sensing frequency (s)
-        frequency = 1 / 2
+        frequency = 1
 
         # Motion timeout (s)
-        self.timeout = 10
+        self.timeout = 30
 
         # I/O setup
         self.relay = Pin(22, Pin.OUT)
@@ -34,6 +34,7 @@ class AutoLight:
         self.last_powered = False
 
         # Start timer
+        timer = Timer()
         timer.init(freq=frequency, mode=Timer.PERIODIC, callback=self.callback)
 
     def callback(self, timer):
@@ -60,4 +61,4 @@ class AutoLight:
             print(f"{since_start} seconds elapsed | {light_powered=}")
 
 
-auto_light = AutoLight(Timer())
+auto_light = AutoLight()
