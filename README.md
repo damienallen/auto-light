@@ -1,4 +1,4 @@
-# auto-light 
+# auto-light 💡
 
 A simple motion sensor project utilizing:
 
